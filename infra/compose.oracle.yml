@@ -1,0 +1,13 @@
+# Runs on the Oracle Always Free VM: Postgres + voice agent.
+services:
+  db:
+    image: postgres:16
+    restart: always
+    environment: { POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}", POSTGRES_DB: concierge }
+    ports: ["5432:5432"]
+    volumes: [pg:/var/lib/postgresql/data]
+  agent:
+    build: ../agent
+    restart: always
+    env_file: ../.env
+volumes: { pg: {} }

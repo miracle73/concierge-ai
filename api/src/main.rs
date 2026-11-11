@@ -25,6 +25,7 @@ async fn main() {
         .route("/checkin", post(check_in))
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state);
+    if env::var("AWS_LAMBDA_FUNCTION_NAME").is_ok() { return lambda_http::run(app).await.expect("lambda"); }
     let addr = format!("0.0.0.0:{}", env::var("PORT").unwrap_or("8080".into()));
     axum::serve(tokio::net::TcpListener::bind(&addr).await.unwrap(), app).await.unwrap();
 }
