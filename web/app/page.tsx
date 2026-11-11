@@ -1,80 +1,125 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LiveKitRoom, RoomAudioRenderer, useTrackVolume, useVoiceAssistant, VoiceAssistantControlBar } from "@livekit/components-react";
 
 const Avatar = dynamic(() => import("./Avatar"), { ssr: false });
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-const POINTS = ["Tell us your name or booking code", "We confirm your stay details", "Get your room number instantly"];
-const LABEL: Record<string, string> = { listening: "Listening", thinking: "Looking that up", speaking: "Speaking", connecting: "Connecting" };
+const HELLOS = ["Hello", "Bawo", "Ndewo", "Sannu", "Bonjour"];
+const STEPS = ["Hi", "Your booking", "All good?", "Key"];
+const MOOD: Record<string, string> = { listening: "Go ahead, I'm listening", thinking: "Hang on, checking…", speaking: "Ava's talking", connecting: "Waking Ava up…" };
 
-const Check = () => <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-white/15 text-[11px]">✓</span>;
-
-function Left() {
-  return (
-    <aside className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-navy via-[#13286a] to-deep p-8 text-white sm:p-12">
-      <div className="absolute -right-24 -top-32 h-96 w-96 rounded-full bg-white/[.06]" />
-      <div className="absolute -left-20 top-1/3 h-56 w-56 rounded-full bg-white/[.05]" />
-      <div className="relative flex items-center gap-2 font-semibold"><span className="grid h-7 w-7 place-items-center rounded-md bg-white text-xs text-navy">C</span>Concierge</div>
-      <div className="relative my-12 max-w-md">
-        <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">Skip the queue. Check in by just talking.</h1>
-        <p className="mt-4 text-white/70">Ava, our front desk assistant, finds your booking and hands you your room in under a minute.</p>
-        <ul className="mt-8 space-y-3 text-sm">{POINTS.map((p) => <li key={p} className="flex items-center gap-3"><Check />{p}</li>)}</ul>
-        <div className="mt-10 flex flex-wrap gap-3 text-xs font-semibold">
-          <span className="rounded-full bg-white px-4 py-2 text-deep">Room 204 is ready</span>
-          <span className="rounded-full bg-white/10 px-4 py-2 ring-1 ring-white/20">Checked in · 38 sec</span>
-        </div>
-      </div>
-      <p className="relative text-xs text-white/50">© 2026 Concierge</p>
-    </aside>
-  );
+function useNow() {
+  const [t, setT] = useState<Date | null>(null);
+  useEffect(() => { setT(new Date()); const i = setInterval(() => setT(new Date()), 20000); return () => clearInterval(i); }, []);
+  return t;
 }
 
-function Stage() {
+function Hello() {
+  const [i, setI] = useState(0);
+  useEffect(() => { const t = setInterval(() => setI((x) => (x + 1) % HELLOS.length), 2200); return () => clearInterval(t); }, []);
+  return <span key={i} className="rise inline-block italic text-[#e8b08a]">{HELLOS[i]}</span>;
+}
+
+const Pill = ({ children }: { children: React.ReactNode }) => (
+  <p className="absolute left-6 top-6 z-10 flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-white backdrop-blur">
+    <span className="h-2 w-2 animate-pulse rounded-full bg-[#7ee0a3]" />{children}</p>
+);
+
+function Live() {
   const va = useVoiceAssistant();
   const volume = useTrackVolume(va.audioTrack);
+  const last = va.agentTranscriptions?.at(-1)?.text;
   return (
     <>
-      <div className="relative w-full overflow-hidden rounded-2xl bg-slate-50 ring-1 ring-slate-200"><Avatar volume={volume} /></div>
-      <p className="flex items-center gap-2 text-sm text-slate-500"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />{LABEL[va.state] ?? "Ready"}</p>
-      <VoiceAssistantControlBar />
+      <div className="absolute inset-0 grid place-items-center"><Avatar volume={volume} /></div>
+      <Pill>{MOOD[va.state] ?? "Here when you're ready"}</Pill>
+      {last && (
+        <div key={last} className="rise absolute bottom-6 left-6 z-10 max-w-md rounded-2xl rounded-bl-sm bg-white px-6 py-4 shadow-lg">
+          <p className="text-[11px] font-bold tracking-widest text-clay">AVA</p>
+          <p className="mt-1 text-lg font-medium leading-snug">{last}</p>
+        </div>
+      )}
+      <div className="absolute bottom-6 right-6 z-10"><VoiceAssistantControlBar /></div>
     </>
   );
 }
 
+function Row({ k }: { k: string }) {
+  return <div className="flex justify-between border-b border-[#e9e3da] pb-3 text-[15px]"><span className="text-[#6b645b]">{k}</span>
+    <span className="mt-3 w-20 border-b border-dashed border-[#c9c1b5]" /></div>;
+}
+
 export default function Page() {
+  const now = useNow();
   const [conn, setConn] = useState<{ token: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const start = async () => {
     setBusy(true);
     const id = `guest-${crypto.randomUUID().slice(0, 8)}`;
-    try { setConn(await (await fetch(`${API}/token?identity=${id}&room=lobby-${id}`)).json()); } finally { setBusy(false); }
+    try { setConn(await (await fetch(`${API}/token?identity=${id}&room=lobby-${id}`)).json()); }
+    catch { alert("Ava's on a break. The desk team can sort you out!"); }
+    finally { setBusy(false); }
   };
-  return (
-    <main className="grid min-h-screen lg:grid-cols-2">
-      <Left />
-      <section className="flex items-center justify-center p-6 sm:p-12">
-        <div className="flex w-full max-w-md flex-col items-center gap-5 text-center">
-          {conn ? (
-            <LiveKitRoom serverUrl={conn.url} token={conn.token} connect audio onDisconnected={() => setConn(null)} className="flex w-full flex-col items-center gap-5">
-              <Stage /><RoomAudioRenderer />
-            </LiveKitRoom>
-          ) : (
-            <>
-              <div className="w-full text-left">
-                <h2 className="text-2xl font-bold">Welcome in</h2>
-                <p className="text-sm text-slate-500">Tap start and say hello. We'll take it from there.</p>
-              </div>
-              <div className="grid aspect-[4/3] w-full place-items-center rounded-2xl bg-slate-50 ring-1 ring-slate-200">
-                <div className="grid h-24 w-24 place-items-center rounded-full bg-navy/10 text-3xl">🎙️</div>
-              </div>
-              <button onClick={start} disabled={busy} className="w-full rounded-lg bg-gradient-to-b from-navy to-deep py-3 text-sm font-semibold text-white disabled:opacity-60">
-                {busy ? "Connecting…" : "Start check-in"}</button>
-              <p className="text-sm text-slate-500">Prefer a person? <span className="font-semibold text-navy">Ask the front desk</span></p>
-            </>
+  const step = conn ? 1 : 0;
+  const hour = now?.getHours() ?? 12;
+
+  const body = (
+    <main className="mx-auto flex min-h-screen max-w-[1440px] flex-col gap-6 px-4 py-6 sm:px-14 sm:py-10">
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-pine font-serif text-lg italic text-stone">L</span>
+          <div><p className="font-serif text-2xl leading-none text-pine">The Larkfield</p><p className="text-xs text-[#6b645b]">Lobby · desk 2</p></div>
+        </div>
+        <div className="flex items-baseline gap-5">
+          <span className="hidden text-sm text-[#6b645b] sm:inline">{hour < 12 ? "Morning!" : hour < 18 ? "Afternoon!" : "Evening!"} Lagos, 29°</span>
+          <span className="font-serif text-4xl text-pine">{now?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+        </div>
+      </header>
+
+      <section className="flex flex-1 flex-col gap-6 lg:flex-row">
+        <div className="relative min-h-[60vh] flex-1 overflow-hidden rounded-md bg-gradient-to-b from-[#2c5240] to-[#14271d] lg:min-h-0">
+          <div className="sway absolute right-8 top-10 z-10 hidden w-52 rounded-sm bg-[#f7e7a8] px-5 py-4 shadow-[0_8px_20px_rgba(0,0,0,.25)] sm:block">
+            <p className="font-serif text-xl leading-tight text-[#3a3220]">Checking out late?<br />1pm is fine :)</p>
+            <p className="mt-1 text-[11px] font-medium text-[#6b5a2e]">— Ada</p>
+          </div>
+          {conn ? <Live /> : (
+            <div className="absolute inset-0 flex flex-col items-start justify-end gap-6 p-8 text-white sm:p-12">
+              <h1 className="font-serif text-6xl leading-[.95] sm:text-8xl"><Hello />,<br />you made it.</h1>
+              <p className="max-w-sm text-white/70">Long trip? Let's get you upstairs. Tap below, tell Ava your name, and she'll handle the rest.</p>
+              <button onClick={start} disabled={busy}
+                className="rounded-full bg-clay px-8 py-4 font-semibold text-white shadow-lg transition hover:-rotate-1 hover:scale-105 disabled:opacity-60">
+                {busy ? "Waking Ava up…" : "Tap to talk to Ava"}</button>
+            </div>
           )}
         </div>
+
+        <aside className="flex w-full flex-col gap-5 rounded-md bg-white p-8 lg:w-[420px]">
+          <p className="text-xs font-semibold tracking-[.15em] text-[#6b645b]">YOUR STAY</p>
+          <p className="font-serif text-4xl text-pine">{conn ? "Nice to meet you" : "And you are…?"}</p>
+          <p className="-mt-3 text-sm text-[#8a8278]">This fills itself in while you two chat.</p>
+          <Row k="Ref" /><Row k="In" /><Row k="Out" /><Row k="Room" />
+          <div className="relative rounded-sm border border-dashed border-clay/50 bg-[#f3e6d6] px-6 py-5">
+            <p className="text-xs font-semibold tracking-[.15em] text-clay">ROOM</p>
+            <p className="font-serif text-7xl leading-none text-pine/25">???</p>
+            <p className="mt-2 text-sm text-[#6b645b]">Your number shows up here. No peeking.</p>
+            <span className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white" />
+            <span className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-white" />
+          </div>
+          <p className="mt-auto text-sm text-[#8a8278]">Rather talk to a person? Wave at us, we're right here.</p>
+        </aside>
       </section>
+
+      <ol className="grid grid-cols-4 gap-3 text-sm">
+        {STEPS.map((s, i) => (
+          <li key={s} className={`pt-3 font-semibold ${i === step ? "border-t-[3px] border-pine text-pine" : i < step ? "border-t border-pine text-[#6b645b]" : "border-t border-[#c9c1b5] text-[#a39b90]"}`}>
+            <span className="mr-2 text-clay">0{i + 1}</span>{s}</li>
+        ))}
+      </ol>
     </main>
   );
+
+  return conn ? (
+    <LiveKitRoom serverUrl={conn.url} token={conn.token} connect audio onDisconnected={() => setConn(null)}>{body}<RoomAudioRenderer /></LiveKitRoom>
+  ) : body;
 }
