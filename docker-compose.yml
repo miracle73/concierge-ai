@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: concierge }
+    ports: ["5432:5432"]
+  api:
+    build: ./api
+    env_file: .env
+    environment: { DATABASE_URL: "postgres://postgres:postgres@db:5432/concierge" }
+    ports: ["8080:8080"]
+    depends_on: [db]
+  agent:
+    build: ./agent
+    env_file: .env
+    environment: { API_URL: "http://api:8080" }
+    depends_on: [api]

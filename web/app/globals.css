@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@theme {
+  --font-sans: var(--font-jakarta);
+  --color-navy: #1b3a8f;
+  --color-deep: #0a1230;
+}
+body { background: #fff; color: #0d1326; }

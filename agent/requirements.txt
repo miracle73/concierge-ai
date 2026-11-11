@@ -1,0 +1,2 @@
+livekit-agents[deepgram,anthropic,cartesia,silero]~=1.2
+httpx
