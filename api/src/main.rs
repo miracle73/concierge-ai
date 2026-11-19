@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use std::{env, sync::Arc};
 
 #[derive(Clone)]
-struct AppState { pms: Arc<dyn pms::Pms>, db: sqlx::PgPool }
+struct AppState { pms: Arc<dyn pms::Pms>, db: Option<sqlx::PgPool> }
 
 type Res = Result<Json<Value>, (StatusCode, Json<Value>)>;
 fn err(c: StatusCode, m: impl ToString) -> (StatusCode, Json<Value>) { (c, Json(json!({"error": m.to_string()}))) }
@@ -15,8 +15,10 @@ fn err(c: StatusCode, m: impl ToString) -> (StatusCode, Json<Value>) { (c, Json(
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    let db = sqlx::PgPool::connect(&env::var("DATABASE_URL").expect("DATABASE_URL")).await.expect("db");
-    sqlx::migrate!().run(&db).await.expect("migrate");
+    let db = match env::var("DATABASE_URL") {
+        Ok(u) if !u.is_empty() => { let p = sqlx::PgPool::connect(&u).await.expect("db"); sqlx::migrate!().run(&p).await.expect("migrate"); Some(p) }
+        _ => { tracing::warn!("DATABASE_URL not set, check-ins not persisted"); None }
+    };
     let state = AppState { pms: Arc::new(pms::MockPms::seeded()), db };
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
@@ -59,8 +61,8 @@ async fn check_in(State(s): State<AppState>, Json(r): Json<CheckInReq>) -> Res {
     let room = checkin::assign_room(&b, &s.pms.rooms().await, chrono::Utc::now().date_naive())
         .map_err(|e| err(StatusCode::CONFLICT, e))?;
     s.pms.mark_checked_in(&b.reference, &room).await.map_err(|e| err(StatusCode::BAD_GATEWAY, e))?;
-    sqlx::query("INSERT INTO check_ins (id, booking_ref, guest_name, room_number) VALUES ($1,$2,$3,$4)")
+    if let Some(db) = &s.db { sqlx::query("INSERT INTO check_ins (id, booking_ref, guest_name, room_number) VALUES ($1,$2,$3,$4)")
         .bind(uuid::Uuid::new_v4()).bind(&b.reference).bind(&b.guest_name).bind(&room)
-        .execute(&s.db).await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        .execute(db).await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e))?; }
     Ok(Json(json!({"guest_name": b.guest_name, "room_number": room})))
 }

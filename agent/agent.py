@@ -2,7 +2,7 @@ import os
 import httpx
 from livekit import agents
 from livekit.agents import Agent, AgentSession, RunContext, function_tool
-from livekit.plugins import anthropic, cartesia, deepgram, silero
+from livekit.plugins import cartesia, deepgram, openai, silero
 
 API = os.environ.get("API_URL", "http://localhost:8080")
 
@@ -32,7 +32,8 @@ class Concierge(Agent):
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         stt=deepgram.STT(),
-        llm=anthropic.LLM(model=os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")),
+        llm=openai.LLM(base_url="https://openrouter.ai/api/v1", api_key=os.environ["OPENROUTER_API_KEY"],
+                       model=os.environ.get("LLM_MODEL", "anthropic/claude-sonnet-4.5")),
         tts=cartesia.TTS(),
         vad=silero.VAD.load(),
     )
