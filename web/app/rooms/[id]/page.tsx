@@ -18,7 +18,7 @@ export default function RoomPage() {
 
   const pay = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setErr("");
-    try { const b = await api<Booking>("/reservations", { ...f, room_id: id }); router.push(`/receipt/${b.id}`); }
+    try { const b = await api<Booking>("/reservations", { ...f, room_id: id }); if (b.pay_url) window.location.href = b.pay_url; else router.push(`/receipt/${b.id}`); }
     catch (x) { setErr(String((x as Error).message)); setBusy(false); }
   };
 
@@ -51,7 +51,7 @@ export default function RoomPage() {
               {err && <p className="text-sm text-clay">{err}</p>}
               <button disabled={busy} className="rounded-sm bg-pine py-3 font-semibold text-white disabled:opacity-60">
                 {busy ? "Paying…" : `Pay ${naira(room.price * (f.nights || 0))}`}</button>
-              <p className="text-center text-[11px] text-[#8a8278]">Demo payment. No card is charged.</p>
+              <p className="text-center text-[11px] text-[#8a8278]">Secure checkout by Paystack. Card, transfer or USSD.</p>
             </form>
           </aside>
         </section>

@@ -13,7 +13,14 @@ export default function Receipt() {
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
       <div className="print:hidden"><Header /></div>
       {err && <p className="mt-8 text-clay">{err}</p>}
-      {b && (
+      {b && !b.paid_at && (
+        <section className="mx-auto mt-10 max-w-md rounded-sm bg-white p-8 text-center">
+          <h1 className="font-serif text-4xl text-pine">Payment not done yet</h1>
+          <p className="mt-2 text-sm text-[#6b645b]">Looks like the payment didn&apos;t go through. Your room is still waiting for you.</p>
+          <a href={`/rooms/${b.room_id}`} className="mt-6 inline-block rounded-sm bg-pine px-6 py-3 font-semibold text-white">Try again</a>
+        </section>
+      )}
+      {b?.paid_at && (
         <section className="relative mx-auto mt-10 max-w-md rounded-sm border border-dashed border-clay/50 bg-white p-8">
           <p className="text-xs font-semibold tracking-[.15em] text-clay">PAID · RECEIPT</p>
           <h1 className="mt-1 font-serif text-4xl text-pine">You're all set, {b.guest_name.split(" ")[0]}.</h1>

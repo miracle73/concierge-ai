@@ -21,6 +21,7 @@ pub struct Booking {
     #[serde(default)] pub hotel: String,
     #[serde(default)] pub total: u32,
     #[serde(default)] pub paid_at: String,
+    #[serde(default)] pub pay_url: String,
 }
 
 /// Total price for a stay. Pure logic, tested.
@@ -64,11 +65,33 @@ async fn book(State(s): S, Json(mut b): Json<Booking>) -> Result<Json<Booking>, 
     b.id = format!("RCPT-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]).to_uppercase();
     b.room_name = room.name;
     b.hotel = room.hotel;
-    b.paid_at = chrono::Utc::now().to_rfc3339();
+    if let Some(key) = ps_key() {
+        let web = std::env::var("WEB_URL").unwrap_or("http://localhost:3100".into());
+        let body = serde_json::json!({"email": b.email, "amount": b.total as u64 * 100, "currency": "NGN", "reference": b.id,
+            "callback_url": format!("{web}/receipt/{}", b.id), "metadata": b});
+        let res: serde_json::Value = reqwest::Client::new().post("https://api.paystack.co/transaction/initialize")
+            .bearer_auth(key).json(&body).send().await.map_err(gw)?.json().await.map_err(gw)?;
+        b.pay_url = res["data"]["authorization_url"].as_str().ok_or_else(|| gw(res["message"].to_string()))?.into();
+    } else {
+        b.paid_at = chrono::Utc::now().to_rfc3339(); // demo mode, no Paystack key
+    }
     s.bookings.lock().unwrap().push(b.clone());
     Ok(Json(b))
 }
+fn ps_key() -> Option<String> { std::env::var("PAYSTACK_SECRET_KEY").ok().filter(|k| !k.is_empty()) }
+fn gw(e: impl ToString) -> E { (StatusCode::BAD_GATEWAY, e.to_string()) }
+
+/// With Paystack, the receipt is rebuilt from the verified transaction, so it works on any Lambda instance.
 async fn get_booking(State(s): S, Path(id): Path<String>) -> Result<Json<Booking>, E> {
+    if let Some(key) = ps_key() {
+        let res: serde_json::Value = reqwest::Client::new().get(format!("https://api.paystack.co/transaction/verify/{id}"))
+            .bearer_auth(key).send().await.map_err(gw)?.json().await.map_err(gw)?;
+        let d = &res["data"];
+        if !d.is_object() { return Err((StatusCode::NOT_FOUND, "receipt not found".into())); }
+        let mut b: Booking = serde_json::from_value(d["metadata"].clone()).map_err(gw)?;
+        b.paid_at = if d["status"] == "success" { d["paid_at"].as_str().unwrap_or_default().into() } else { String::new() };
+        return Ok(Json(b));
+    }
     s.bookings.lock().unwrap().iter().find(|b| b.id == id).cloned().map(Json).ok_or((StatusCode::NOT_FOUND, "receipt not found".into()))
 }
 
