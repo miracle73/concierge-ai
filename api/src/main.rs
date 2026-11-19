@@ -1,5 +1,6 @@
 mod checkin;
 mod pms;
+mod rooms;
 
 use axum::{extract::{Query, State}, http::StatusCode, routing::{get, post}, Json, Router};
 use serde::Deserialize;
@@ -26,7 +27,9 @@ async fn main() {
         .route("/bookings", get(find_booking))
         .route("/checkin", post(check_in))
         .layer(tower_http::cors::CorsLayer::permissive())
-        .with_state(state);
+        .with_state(state)
+        .merge(rooms::router())
+        .layer(tower_http::cors::CorsLayer::permissive());
     if env::var("AWS_LAMBDA_FUNCTION_NAME").is_ok() { return lambda_http::run(app).await.expect("lambda"); }
     let addr = format!("0.0.0.0:{}", env::var("PORT").unwrap_or("8080".into()));
     axum::serve(tokio::net::TcpListener::bind(&addr).await.unwrap(), app).await.unwrap();
