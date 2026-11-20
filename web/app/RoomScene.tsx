@@ -4,14 +4,14 @@ import { OrbitControls, Html } from "@react-three/drei";
 import type { Item } from "./lib";
 
 // [width, height, depth, color, lift off floor]
-const K: Record<string, [number, number, number, string, number]> = {
+export const K: Record<string, [number, number, number, string, number]> = {
   bed: [1.6, 0.5, 2, "#e8e2d6", 0], wardrobe: [1.2, 2, 0.6, "#8a6a4a", 0], desk: [1.2, 0.75, 0.6, "#a07850", 0],
   chair: [0.5, 0.9, 0.5, "#4a4a4a", 0], tv: [1.2, 0.7, 0.08, "#111111", 1.1], sofa: [1.8, 0.8, 0.8, "#1f3b2d", 0],
   lamp: [0.3, 1.5, 0.3, "#f0c070", 0], plant: [0.4, 1, 0.4, "#3f7d4a", 0], fridge: [0.6, 1.6, 0.6, "#dddddd", 0],
   bathtub: [1.6, 0.6, 0.8, "#f5f5f5", 0], ac: [0.9, 0.3, 0.25, "#f0f0f0", 2.1],
 };
 
-function layout(items: Item[], L: number) {
+export function layout(items: Item[], L: number) {
   const out: { kind: string; pos: [number, number, number]; rot: number }[] = [];
   let x = -L / 2 + 0.2, wall = 0;
   for (const it of items) for (let i = 0; i < it.count; i++) {
