@@ -5,17 +5,20 @@ import { useEffect, useRef, useState } from "react";
 import { api, naira, type Booking, type Room } from "./lib";
 import type { Keys } from "./World";
 
-const World = dynamic(() => import("./World"), { ssr: false, loading: () => <p className="grid h-full place-items-center text-[#6b645b]">Opening the doors…</p> });
+const World = dynamic(() => import("./World"), { ssr: false, loading: () => <p className="grid h-full place-items-center text-sm text-mute">Opening the doors…</p> });
 
-const HI = "Hi, welcome to The Larkfield! I'm Ava. The rooms are down the corridor behind me. Walk in, look around, and come back to me when one feels right.";
-const PAY = "Lovely choice! Pop your details in and I'll take payment.";
+const HI = "Hi, welcome to Larkfield. I'm Ava. The rooms are down the corridor behind me. Have a look, and come back when one feels right.";
+const say = (t: string) => { try { const u = new SpeechSynthesisUtterance(t); speechSynthesis.cancel(); speechSynthesis.speak(u); } catch {} };
 
-function speak(t: string) {
-  try { const u = new SpeechSynthesisUtterance(t); speechSynthesis.cancel(); speechSynthesis.speak(u); } catch {}
-}
-
-const Card = ({ children }: { children: React.ReactNode }) => (
-  <div className="rise pointer-events-auto w-full max-w-sm rounded-md bg-white/95 p-5 shadow-xl backdrop-blur">{children}</div>
+const Chip = ({ children, dark }: { children: React.ReactNode; dark?: boolean }) => (
+  <span className={`rounded-[10px] px-3 py-2 text-[13px] font-semibold ${dark ? "bg-pine text-white" : "bg-white text-ink"}`}>{children}</span>
+);
+const Panel = ({ children }: { children: React.ReactNode }) => (
+  <div className="card rise pointer-events-auto w-full max-w-[380px] p-5 shadow-[0_8px_24px_rgba(0,0,0,.08)]">{children}</div>
+);
+const Ava = ({ sub = "Front desk" }: { sub?: string }) => (
+  <div className="flex items-center gap-2.5"><span className="h-8 w-8 rounded-full bg-[#c98a5e]" />
+    <div><p className="text-sm font-bold leading-tight">Ava</p><p className="text-[11px] text-mute">{sub}</p></div></div>
 );
 
 export default function Home() {
@@ -28,78 +31,79 @@ export default function Home() {
   const keys = useRef<Keys>({});
   const greeted = useRef(false);
 
-  useEffect(() => { api<Room[]>("/rooms").then(setRooms).catch(() => setErr("Couldn't load rooms. Refresh in a sec.")); }, []);
+  useEffect(() => { api<Room[]>("/rooms").then(setRooms).catch(() => setErr("Couldn't load rooms. Refresh in a moment.")); }, []);
+  const payLine = picked ? `${picked.name}, good pick. That's ${naira(picked.price)} a night. How many nights, and where should the receipt go?` : "";
   useEffect(() => {
     if (zone !== "desk") return;
-    if (picked) speak(PAY); else if (!greeted.current) { greeted.current = true; speak(HI); }
-  }, [zone, picked]);
+    if (picked) say(payLine); else if (!greeted.current) { greeted.current = true; say(HI); }
+  }, [zone, picked, payLine]);
 
   const here = zone.startsWith("room:") ? rooms[+zone.slice(5)] : null;
   const pay = async (e: React.FormEvent) => {
     e.preventDefault(); if (!picked) return; setBusy(true); setErr("");
-    try {
-      const b = await api<Booking>("/reservations", { ...f, room_id: picked.id });
-      window.location.href = b.pay_url || `/receipt/${b.id}`;
-    } catch (x) { setErr((x as Error).message); setBusy(false); }
+    try { const b = await api<Booking>("/reservations", { ...f, room_id: picked.id }); window.location.href = b.pay_url || `/receipt/${b.id}`; }
+    catch (x) { setErr((x as Error).message); setBusy(false); }
   };
-  const hold = (k: string) => ({
-    onPointerDown: () => { keys.current[k] = true; }, onPointerUp: () => { keys.current[k] = false; }, onPointerLeave: () => { keys.current[k] = false; },
-  });
-  const inp = "rounded-sm border border-[#e9e3da] px-3 py-2 text-sm";
+  const nights = (d: number) => setF({ ...f, nights: Math.min(30, Math.max(1, f.nights + d)) });
+  const hold = (k: string) => ({ onPointerDown: () => { keys.current[k] = true; }, onPointerUp: () => { keys.current[k] = false; }, onPointerLeave: () => { keys.current[k] = false; } });
+  const where = zone === "desk" ? "Front desk" : here ? here.name : "Lobby";
 
   return (
     <main className="relative h-dvh w-full overflow-hidden">
       <World rooms={rooms} keys={keys} onZone={setZone} />
 
-      <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-4 sm:p-6">
-        <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-full bg-pine font-serif text-lg italic text-stone">L</span>
-          <span className="font-serif text-2xl text-pine">The Larkfield</span></div>
-        <div className="pointer-events-auto flex items-center gap-3">
-          {picked && <span className="rounded-full bg-clay px-3 py-1 text-xs font-semibold text-white">Picked: {picked.name}</span>}
-          <Link href="/dashboard" className="text-sm font-semibold text-pine hover:underline">For hotels →</Link>
+      <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-4 sm:p-6">
+        <span className="flex items-center gap-2.5 rounded-[10px] bg-white py-2 pl-2.5 pr-3.5"><span className="h-6 w-6 rounded-md bg-clay" /><b className="text-sm">Larkfield, Lekki</b></span>
+        <div className="pointer-events-auto flex flex-wrap justify-end gap-2">
+          <Chip>{where} · {rooms.length} rooms</Chip>
+          {picked && <Chip dark>Picked: {picked.name}</Chip>}
+          <Link href="/dashboard" className="hidden rounded-[10px] bg-white px-3 py-2 text-[13px] font-semibold text-mute hover:text-ink sm:block">For hotels</Link>
         </div>
       </header>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-4 sm:items-start sm:p-6">
-        {err && <Card><p className="text-sm text-clay">{err}</p></Card>}
-        {zone === "desk" && !picked && (
-          <Card><p className="text-[11px] font-bold tracking-widest text-clay">AVA</p>
-            <p className="mt-1 font-medium leading-snug">{HI}</p></Card>
-        )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-4 sm:items-start sm:p-7">
+        {err && <Panel><p className="text-sm text-clay">{err}</p></Panel>}
+        {zone === "desk" && !picked && <Panel><Ava /><p className="mt-3 text-sm font-medium leading-relaxed">{HI}</p></Panel>}
         {zone === "desk" && picked && (
-          <Card>
-            <p className="text-[11px] font-bold tracking-widest text-clay">AVA</p>
-            <p className="mt-1 font-medium">{PAY}</p>
-            <p className="mt-2 font-serif text-2xl text-pine">{picked.name} · {naira(picked.price)}<span className="text-sm">/night</span></p>
+          <Panel>
+            <Ava />
+            <p className="mt-3 text-sm font-medium leading-relaxed">{payLine}</p>
             <form onSubmit={pay} className="mt-3 flex flex-col gap-2">
-              <input required placeholder="Your name" value={f.guest_name} onChange={(e) => setF({ ...f, guest_name: e.target.value })} className={inp} />
-              <input required type="email" placeholder="Email for the receipt" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} className={inp} />
-              <label className="flex items-center justify-between text-sm">Nights
-                <input type="number" min={1} max={30} value={f.nights} onChange={(e) => setF({ ...f, nights: +e.target.value })} className={inp + " w-20"} /></label>
-              <button disabled={busy} className="rounded-sm bg-pine py-3 font-semibold text-white disabled:opacity-60">{busy ? "Opening Paystack…" : `Pay ${naira(picked.price * (f.nights || 0))}`}</button>
-              <button type="button" onClick={() => setPicked(null)} className="text-xs text-[#6b645b] underline">Actually, let me look again</button>
+              <input required placeholder="Full name" value={f.guest_name} onChange={(e) => setF({ ...f, guest_name: e.target.value })} className="inp" />
+              <input required type="email" placeholder="Email for the receipt" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} className="inp" />
+              <div className="flex items-center justify-between text-sm font-medium">Nights
+                <span className="flex items-center rounded-lg border border-line">
+                  <button type="button" onClick={() => nights(-1)} className="px-3 py-1.5">−</button><b className="w-6 text-center">{f.nights}</b>
+                  <button type="button" onClick={() => nights(1)} className="px-3 py-1.5">+</button></span></div>
+              <button disabled={busy} className="mt-1 rounded-lg bg-pine py-3 text-sm font-semibold text-white disabled:opacity-60">{busy ? "Opening Paystack…" : `Pay ${naira(picked.price * f.nights)}`}</button>
+              <p className="flex justify-between text-[11px] text-mute">Paystack · card, transfer or USSD
+                <button type="button" onClick={() => setPicked(null)} className="underline">Pick another room</button></p>
             </form>
-          </Card>
+          </Panel>
         )}
         {here && (
-          <Card>
-            <p className="text-xs font-semibold tracking-[.15em] text-[#6b645b]">YOU&apos;RE IN</p>
-            <p className="font-serif text-3xl text-pine">{here.name}</p>
-            <p className="text-sm text-[#6b645b]">{here.size_m2} m² · sleeps {here.guests} · {naira(here.price)}/night</p>
-            <ul className="mt-2 flex flex-wrap gap-1.5 text-xs">{here.items.map((i) => <li key={i.kind} className="rounded-full border border-[#e9e3da] px-2 py-0.5 capitalize">{i.count > 1 ? `${i.count}× ` : ""}{i.kind}</li>)}</ul>
+          <Panel>
+            <div className="flex items-start justify-between">
+              <div><p className="text-[11px] font-medium text-mute">You&apos;re in</p><p className="text-lg font-bold">{here.name}</p></div>
+              <p className="text-right"><b>{naira(here.price)}</b><span className="block text-[11px] text-mute">per night</span></p>
+            </div>
+            <p className="mt-1 text-[13px] text-mute">{here.size_m2} m² · sleeps {here.guests}</p>
+            <p className="mt-2 text-[13px] capitalize">{here.items.map((i) => (i.count > 1 ? `${i.count} ${i.kind}s` : i.kind)).join(", ")}</p>
             {picked?.id === here.id
-              ? <p className="mt-3 text-sm font-semibold text-pine">Nice. Head back to Ava at the desk to pay.</p>
-              : <button onClick={() => setPicked(here)} className="mt-3 w-full rounded-sm bg-clay py-2.5 font-semibold text-white">I&apos;ll take this one</button>}
-          </Card>
+              ? <p className="mt-3 rounded-lg bg-[#e3efe7] px-3 py-2 text-[13px] font-semibold text-pine">Saved. Head back to Ava at the front desk to pay.</p>
+              : <button onClick={() => setPicked(here)} className="mt-3 w-full rounded-lg bg-pine py-2.5 text-sm font-semibold text-white">I&apos;ll take this room</button>}
+          </Panel>
         )}
-        {!zone && <p className="rounded-full bg-white/80 px-4 py-2 text-xs text-[#6b645b]">{picked ? "Walk back to Ava at the desk to pay." : "W / ↑ to walk · A D / ← → to turn. Say hi to Ava at the desk."}</p>}
       </div>
 
-      <div className="absolute bottom-4 right-4 grid grid-cols-3 gap-1 select-none sm:hidden">
-        <span /><button {...hold("w")} className="h-12 w-12 rounded-full bg-pine/80 text-white">▲</button><span />
-        <button {...hold("a")} className="h-12 w-12 rounded-full bg-pine/80 text-white">◀</button>
-        <button {...hold("s")} className="h-12 w-12 rounded-full bg-pine/80 text-white">▼</button>
-        <button {...hold("d")} className="h-12 w-12 rounded-full bg-pine/80 text-white">▶</button>
+      <div className="absolute bottom-7 right-7 hidden items-center gap-4 rounded-[10px] bg-white/90 px-3.5 py-2.5 text-xs font-semibold sm:flex">
+        <span>W walk</span><span>A / D turn</span><span className="text-mute">{picked ? "Pay at the front desk" : "Say hi to Ava"}</span>
+      </div>
+      <div className="absolute bottom-4 right-4 grid select-none grid-cols-3 gap-1 sm:hidden">
+        <span /><button {...hold("w")} className="h-12 w-12 rounded-xl bg-white text-ink shadow">▲</button><span />
+        <button {...hold("a")} className="h-12 w-12 rounded-xl bg-white text-ink shadow">◀</button>
+        <button {...hold("s")} className="h-12 w-12 rounded-xl bg-white text-ink shadow">▼</button>
+        <button {...hold("d")} className="h-12 w-12 rounded-xl bg-white text-ink shadow">▶</button>
       </div>
     </main>
   );

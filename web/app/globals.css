@@ -1,15 +1,18 @@
 @import "tailwindcss";
 @theme {
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-instrument);
-  --color-stone: #efe9e1;
+  --font-sans: var(--font-jakarta);
+  --font-serif: var(--font-jakarta);
+  --color-stone: #f6f4f0;
   --color-pine: #1f3b2d;
+  --color-night: #132219;
   --color-clay: #b8643a;
-  --color-ink: #1c1a17;
+  --color-ink: #14211a;
+  --color-line: #e7e2da;
+  --color-mute: #6f6a62;
 }
 body { background: var(--color-stone); color: var(--color-ink); }
-.paper { background-image: radial-gradient(rgba(60,40,20,.06) 1px, transparent 1px); background-size: 4px 4px; }
-@keyframes sway { 0%,100% { transform: rotate(4deg) } 50% { transform: rotate(2deg) translateY(-3px) } }
-.sway { animation: sway 5s ease-in-out infinite; transform-origin: top center; }
-@keyframes rise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
-.rise { animation: rise .5s ease both; }
+.card { background: #fff; border: 1px solid var(--color-line); border-radius: 12px; }
+.inp { border: 1px solid var(--color-line); border-radius: 8px; padding: .6rem .75rem; font-size: .875rem; background: #fff; }
+.inp:focus { outline: 2px solid var(--color-pine); outline-offset: -1px; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.rise { animation: rise .35s ease both; }
